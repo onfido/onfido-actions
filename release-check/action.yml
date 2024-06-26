@@ -1,0 +1,17 @@
+name: Check release
+description: Check release information before delivery
+runs:
+  using: "composite"
+  steps:
+
+    - name: Sanity check
+      shell: bash
+      run: |
+        RELEASE_NAME=v3.1.0
+        RELEASE_VERSION=$(jq -r '.release' .release.json)
+
+        if [ "$RELEASE_NAME" != "$RELEASE_VERSION" ]
+        then
+          echo "Expecting release name '$RELEASE_VERSION', but '$RELEASE_NAME' found."
+          exit 1
+        fi

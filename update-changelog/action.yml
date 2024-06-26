@@ -1,0 +1,20 @@
+name: Update CHANGELOG.md
+description: Re-usable workflow to update CHANGELOG.md file in libraries' repository
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Update CHANGELOG.md
+      run: ${{ github.action_path }}/update-changelog.sh
+      shell: bash
+      env:
+        RELEASE_BODY: ${{ github.event.release.body }}
+
+    - name: Commit CHANGELOG.md
+      shell: bash
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "<>"
+        git commit -m "Update CHANGELOG.md after library release" CHANGELOG.md
+        git push
