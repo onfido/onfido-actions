@@ -20,13 +20,13 @@ echo -e "# Changelog\n\n## $RELEASE_VERSION $RELEASE_DATE\n" >| $TMP_FILE
 echo -en " - Release based on Onfido OpenAPI spec " >> $TMP_FILE
 
 if [ -z $SPEC_RELEASE_VERSION ]; then
-  echo "up to commit [$SPEC_COMMIT_SHA](${SPEC_COMMIT_URL})." >> $TMP_FILE
+  echo "up to commit [$SPEC_COMMIT_SHA](${SPEC_COMMIT_URL}):" >> $TMP_FILE
 else
-  echo "version [$SPEC_RELEASE_VERSION](${SPEC_RELEASE_URL})." >> $TMP_FILE
+  echo "version [$SPEC_RELEASE_VERSION](${SPEC_RELEASE_URL}):" >> $TMP_FILE
 fi
 
-# Add and format contents from github release notes body (lines starting with - only)
-cat <<EOF | grep '^ *-' | sed 's/^ *- */ - /' >> $TMP_FILE || true
+# Add contents from github release notes body (lines starting with - only)
+cat <<EOF | grep '^ *-' >> $TMP_FILE || true
 $RELEASE_BODY
 EOF
 
