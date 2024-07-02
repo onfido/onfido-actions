@@ -7,7 +7,7 @@ runs:
     - name: Sanity check
       shell: bash
       run: |
-        RELEASE_NAME=v3.1.0
+        RELEASE_NAME=${{ github.event.release.name }}
         RELEASE_VERSION=$(jq -r '.release' .release.json)
 
         if [ "$RELEASE_NAME" != "$RELEASE_VERSION" ]
