@@ -17,7 +17,7 @@ SPEC_RELEASE_URL=$(jq -r '.source.repo_url + "/releases/tag/" + .source.version'
 echo -e "# Changelog\n\n## $RELEASE_VERSION $RELEASE_DATE\n" >| $TMP_FILE
 
 # Onfido OpenAPI reference release (or commit)
-echo -en " - Release based on Onfido OpenAPI spec " >> $TMP_FILE
+echo -en "- Release based on Onfido OpenAPI spec " >> $TMP_FILE
 
 if [ -z $SPEC_RELEASE_VERSION ]; then
   echo "up to commit [$SPEC_COMMIT_SHA](${SPEC_COMMIT_URL}):" >> $TMP_FILE
