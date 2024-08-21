@@ -34,5 +34,6 @@ EOF
 grep -v "^# Changelog" CHANGELOG.md >> $TMP_FILE
 mv $TMP_FILE CHANGELOG.md
 
-# Run prettier on updated changelog
+# Install and run prettier on updated changelog
+npm install prettier
 npx prettier --write CHANGELOG.md
