@@ -33,3 +33,7 @@ EOF
 # Add contents from previous changelog and override it
 grep -v "^# Changelog" CHANGELOG.md >> $TMP_FILE
 mv $TMP_FILE CHANGELOG.md
+
+# Install and run prettier on updated changelog
+npm install prettier
+npx prettier --write CHANGELOG.md
