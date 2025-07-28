@@ -25,8 +25,8 @@ else
   echo "version [$SPEC_RELEASE_VERSION](${SPEC_RELEASE_URL}):" >> $TMP_FILE
 fi
 
-# Add contents from github release notes body (lines starting with - only)
-cat <<EOF | grep '^ *-' >> $TMP_FILE || true
+# Add contents from github release notes body (lines starting with - only and without author)
+cat <<EOF | grep '^ *-' | sed 's/ by @.*//' >> $TMP_FILE || true
 $RELEASE_BODY
 EOF
 
