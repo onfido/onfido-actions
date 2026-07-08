@@ -1,0 +1,37 @@
+name: Release Lock
+description: |
+  Release a distributed lock by deleting the lock branch from the shared repository.
+  Should always be called with `if: always()` to ensure the lock is released even on failure.
+
+inputs:
+  github-token:
+    description: "GitHub token with write access to the lock repository"
+    required: true
+  lock-name:
+    description: "Name of the lock (used as branch name under locks/ prefix)"
+    required: true
+    default: "client-libraries-integration-tests"
+  lock-repo:
+    description: "Repository used for locking (owner/repo format)"
+    required: false
+    default: "onfido/ci-lock"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Release lock
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        LOCK_NAME: ${{ inputs.lock-name }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+      run: |
+        LOCK_BRANCH="locks/${LOCK_NAME}"
+
+        echo "Releasing lock '${LOCK_NAME}' (deleting branch: ${LOCK_BRANCH} in ${LOCK_REPO})..."
+
+        if gh api "repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" -X DELETE 2>/dev/null; then
+          echo "✅ Lock '${LOCK_NAME}' released successfully"
+        else
+          echo "⚠️  Lock branch not found — may have already been released"
+        fi
