@@ -1,0 +1,59 @@
+name: Should Run Integration Tests
+description: |
+  Determines whether integration tests should run based on the workflow event.
+  Returns result=true for:
+  - pull_request: only if NOT from a fork (forks don't have access to secrets)
+  - push: only if it's a merge from a fork PR (to catch what couldn't run pre-merge)
+  - release, workflow_dispatch, schedule: always
+
+inputs:
+  github-token:
+    description: "GitHub token for API access (typically github.token)"
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  result:
+    description: "'true' if integration tests should run, empty otherwise"
+    value: ${{ steps.check.outputs.result }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check if integration tests should run
+      id: check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        EVENT_NAME: ${{ github.event_name }}
+        PR_HEAD_REPO_FULL_NAME: ${{ github.event.pull_request.head.repo.full_name }}
+        REPO: ${{ github.repository }}
+        REPO_OWNER: ${{ github.repository_owner }}
+        SHA: ${{ github.sha }}
+      run: |
+        case "$EVENT_NAME" in
+          release|workflow_dispatch|schedule)
+            echo "result=true" >> "$GITHUB_OUTPUT"
+            ;;
+          pull_request)
+            # Skip fork PRs — secrets are not available
+            if [ "$PR_HEAD_REPO_FULL_NAME" = "$REPO" ]; then
+              echo "result=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Skipping: PR from fork ($PR_HEAD_REPO_FULL_NAME)"
+            fi
+            ;;
+          push)
+            # On push, only run tests if it's a merge from a fork PR
+            # (fork PRs can't run integration tests pre-merge due to missing secrets)
+            PR_OWNER=$(gh pr list --repo "$REPO" --state merged \
+              --search "$SHA" --json headRepositoryOwner \
+              --jq '.[0].headRepositoryOwner.login // empty' 2>/dev/null)
+            if [ -n "$PR_OWNER" ] && [ "$PR_OWNER" != "$REPO_OWNER" ]; then
+              echo "Push from fork PR (owner: $PR_OWNER) — running integration tests"
+              echo "result=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Skipping: push is not from a fork PR"
+            fi
+            ;;
+        esac
