@@ -18,8 +18,9 @@ The `lock/release` action deletes the lock branch, making the lock available aga
 ### Setup
 
 1. Create the lock repository (e.g., `onfido/ci-lock`) with at least a `main` branch
-2. Create a GitHub App or PAT with write access to `onfido/ci-lock`
-3. Store the token as a secret in each SDK repository (e.g., `CI_LOCK_TOKEN`)
+2. Create a GitHub App with write access to the lock repository
+3. Install the app on the org and grant it access to the `ci-lock` repo
+4. Store `ONFIDO_CI_LOCK_APP_ID` and `ONFIDO_CI_LOCK_PRIVATE_KEY` as org-level secrets
 
 ### Usage
 
@@ -30,7 +31,8 @@ jobs:
     steps:
       - uses: onfido/onfido-actions/lock/acquire@main
         with:
-          github-token: ${{ secrets.CI_LOCK_TOKEN }}
+          app-id: ${{ secrets.ONFIDO_CI_LOCK_APP_ID }}
+          app-private-key: ${{ secrets.ONFIDO_CI_LOCK_PRIVATE_KEY }}
           lock-name: "client-libraries-integration-tests"  # optional, this is the default
           timeout: "1800"                                  # optional, default 30 min
           poll-interval: "30"                              # optional, default 30s
@@ -40,7 +42,8 @@ jobs:
       - uses: onfido/onfido-actions/lock/release@main
         if: always()
         with:
-          github-token: ${{ secrets.CI_LOCK_TOKEN }}
+          app-id: ${{ secrets.ONFIDO_CI_LOCK_APP_ID }}
+          app-private-key: ${{ secrets.ONFIDO_CI_LOCK_PRIVATE_KEY }}
           lock-name: "client-libraries-integration-tests"
 ```
 
@@ -50,7 +53,8 @@ jobs:
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `github-token` | yes | | Token with write access to lock repo |
+| `app-id` | yes | | GitHub App ID |
+| `app-private-key` | yes | | GitHub App private key |
 | `lock-name` | yes | `client-libraries-integration-tests` | Lock name (becomes branch `locks/<name>`) |
 | `lock-repo` | no | `onfido/ci-lock` | Repository used for locking |
 | `timeout` | no | `1800` | Max wait time in seconds |
@@ -60,7 +64,8 @@ jobs:
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `github-token` | yes | | Token with write access to lock repo |
+| `app-id` | yes | | GitHub App ID |
+| `app-private-key` | yes | | GitHub App private key |
 | `lock-name` | yes | `client-libraries-integration-tests` | Lock name (must match acquire) |
 | `lock-repo` | no | `onfido/ci-lock` | Repository used for locking |
 
