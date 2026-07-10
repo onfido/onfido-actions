@@ -5,8 +5,11 @@ description: |
   If the branch already exists (lock held), polls until it's released or times out.
 
 inputs:
-  github-token:
-    description: "GitHub token with write access to the lock repository"
+  app-id:
+    description: "GitHub App ID for generating a token"
+    required: true
+  app-private-key:
+    description: "GitHub App private key for generating a token"
     required: true
   lock-name:
     description: "Name of the lock (used as branch name under locks/ prefix)"
@@ -36,11 +39,20 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Generate token from GitHub App
+      id: app-token
+      uses: actions/create-github-app-token@v2
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-private-key }}
+        owner: ${{ github.repository_owner }}
+        repositories: ci-lock
+
     - name: Acquire lock
       id: acquire
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.github-token }}
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
         LOCK_NAME: ${{ inputs.lock-name }}
         LOCK_REPO: ${{ inputs.lock-repo }}
         TIMEOUT: ${{ inputs.timeout }}
