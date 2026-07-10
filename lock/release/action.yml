@@ -42,6 +42,14 @@ runs:
 
         echo "Releasing lock '${LOCK_NAME}' (deleting branch: ${LOCK_BRANCH} in ${LOCK_REPO})..."
 
+        # Verify we own the lock before releasing it
+        LOCK_MSG=$(gh api "repos/${LOCK_REPO}/commits/${LOCK_BRANCH}" --jq '.commit.message' 2>/dev/null || echo "")
+        if [ -n "$LOCK_MSG" ] && ! echo "$LOCK_MSG" | grep -q "${GITHUB_RUN_ID}"; then
+          echo "⚠️  Lock is held by another run: ${LOCK_MSG}"
+          echo "⚠️  Skipping release to avoid breaking another workflow's lock"
+          exit 0
+        fi
+
         if gh api "repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" -X DELETE 2>/dev/null; then
           echo "✅ Lock '${LOCK_NAME}' released successfully"
         else
