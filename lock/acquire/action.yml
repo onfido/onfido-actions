@@ -1,0 +1,125 @@
+name: Acquire Lock
+description: |
+  Acquire a distributed lock using a git branch in a shared repository.
+  Attempts to create a lock branch — if it succeeds, the lock is acquired.
+  If the branch already exists (lock held), polls until it's released or times out.
+
+inputs:
+  app-id:
+    description: "GitHub App ID for generating a token"
+    required: true
+  app-private-key:
+    description: "GitHub App private key for generating a token"
+    required: true
+  lock-name:
+    description: "Name of the lock (used as branch name under locks/ prefix)"
+    required: true
+    default: "client-libraries-integration-tests"
+  lock-repo:
+    description: "Repository used for locking (owner/repo format)"
+    required: false
+    default: "onfido/ci-lock"
+  timeout:
+    description: "Maximum time in seconds to wait for the lock (default: 1800 = 30 min)"
+    required: false
+    default: "1800"
+  poll-interval:
+    description: "Seconds between lock acquisition attempts (default: 30)"
+    required: false
+    default: "30"
+
+outputs:
+  acquired:
+    description: "Whether the lock was successfully acquired"
+    value: ${{ steps.acquire.outputs.acquired }}
+  lock-branch:
+    description: "The branch name used for this lock"
+    value: ${{ steps.acquire.outputs.lock_branch }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Generate token from GitHub App
+      id: app-token
+      uses: actions/create-github-app-token@v2
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-private-key }}
+        owner: ${{ github.repository_owner }}
+        repositories: ci-lock
+
+    - name: Acquire lock
+      id: acquire
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        LOCK_NAME: ${{ inputs.lock-name }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+        TIMEOUT: ${{ inputs.timeout }}
+        POLL_INTERVAL: ${{ inputs.poll-interval }}
+      run: |
+        LOCK_BRANCH="locks/${LOCK_NAME}"
+        echo "lock_branch=${LOCK_BRANCH}" >> "$GITHUB_OUTPUT"
+
+        elapsed=0
+
+        # Get the default branch SHA to use as base for the lock branch
+        get_base_sha() {
+          gh api "repos/${LOCK_REPO}/git/ref/heads/main" --jq '.object.sha' 2>/dev/null || \
+          gh api "repos/${LOCK_REPO}/git/ref/heads/master" --jq '.object.sha' 2>/dev/null
+        }
+
+        # Try to create the lock branch (atomic operation)
+        try_acquire() {
+          local base_sha
+          base_sha=$(get_base_sha)
+
+          if [ -z "$base_sha" ]; then
+            echo "::error::Could not find base branch in ${LOCK_REPO}"
+            exit 1
+          fi
+
+          # Creating a ref is atomic — only one process can succeed
+          local result
+          result=$(gh api "repos/${LOCK_REPO}/git/refs" \
+            -X POST \
+            -f "ref=refs/heads/${LOCK_BRANCH}" \
+            -f "sha=${base_sha}" 2>&1) && return 0 || return 1
+        }
+
+        echo "Attempting to acquire lock '${LOCK_NAME}' (branch: ${LOCK_BRANCH} in ${LOCK_REPO})..."
+
+        while [ $elapsed -lt $TIMEOUT ]; do
+          if try_acquire; then
+            echo "✅ Lock '${LOCK_NAME}' acquired successfully"
+            echo "acquired=true" >> "$GITHUB_OUTPUT"
+
+            # Update the lock branch with a commit containing metadata
+            LOCK_INFO="Lock acquired by ${GITHUB_REPOSITORY} - ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            TMPDIR=$(mktemp -d)
+            git clone --depth 1 --branch "${LOCK_BRANCH}" "https://x-access-token:${GH_TOKEN}@github.com/${LOCK_REPO}.git" "$TMPDIR" 2>/dev/null || true
+            if [ -d "$TMPDIR/.git" ]; then
+              cd "$TMPDIR"
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git commit --allow-empty -m "$LOCK_INFO"
+              git push origin "${LOCK_BRANCH}" 2>/dev/null || true
+              cd - > /dev/null
+            fi
+            rm -rf "$TMPDIR"
+
+            exit 0
+          fi
+
+          # Show who currently holds the lock
+          HOLDER=$(gh api "repos/${LOCK_REPO}/commits/${LOCK_BRANCH}" --jq '.commit.message' 2>/dev/null || echo "unknown")
+          echo "⏳ Lock '${LOCK_NAME}' is held (${elapsed}/${TIMEOUT}s elapsed, retrying in ${POLL_INTERVAL}s)"
+          echo "   Holder: ${HOLDER}"
+          sleep "$POLL_INTERVAL"
+          elapsed=$((elapsed + POLL_INTERVAL))
+        done
+
+        echo "❌ Timed out waiting for lock '${LOCK_NAME}' after ${TIMEOUT}s"
+        echo "acquired=false" >> "$GITHUB_OUTPUT"
+        echo "::error::Timed out waiting for lock '${LOCK_NAME}' after ${TIMEOUT}s"
+        exit 1

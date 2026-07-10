@@ -1,0 +1,57 @@
+name: Release Lock
+description: |
+  Release a distributed lock by deleting the lock branch from the shared repository.
+  Should always be called with `if: always()` to ensure the lock is released even on failure.
+
+inputs:
+  app-id:
+    description: "GitHub App ID for generating a token"
+    required: true
+  app-private-key:
+    description: "GitHub App private key for generating a token"
+    required: true
+  lock-name:
+    description: "Name of the lock (used as branch name under locks/ prefix)"
+    required: true
+    default: "client-libraries-integration-tests"
+  lock-repo:
+    description: "Repository used for locking (owner/repo format)"
+    required: false
+    default: "onfido/ci-lock"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Generate token from GitHub App
+      id: app-token
+      uses: actions/create-github-app-token@v2
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-private-key }}
+        owner: ${{ github.repository_owner }}
+        repositories: ci-lock
+
+    - name: Release lock
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        LOCK_NAME: ${{ inputs.lock-name }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+      run: |
+        LOCK_BRANCH="locks/${LOCK_NAME}"
+
+        echo "Releasing lock '${LOCK_NAME}' (deleting branch: ${LOCK_BRANCH} in ${LOCK_REPO})..."
+
+        # Verify we own the lock before releasing it
+        LOCK_MSG=$(gh api "repos/${LOCK_REPO}/commits/${LOCK_BRANCH}" --jq '.commit.message' 2>/dev/null || echo "")
+        if [ -n "$LOCK_MSG" ] && ! echo "$LOCK_MSG" | grep -q "${GITHUB_RUN_ID}"; then
+          echo "⚠️  Lock is held by another run: ${LOCK_MSG}"
+          echo "⚠️  Skipping release to avoid breaking another workflow's lock"
+          exit 0
+        fi
+
+        if gh api "repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" -X DELETE 2>/dev/null; then
+          echo "✅ Lock '${LOCK_NAME}' released successfully"
+        else
+          echo "⚠️  Lock branch not found — may have already been released"
+        fi
