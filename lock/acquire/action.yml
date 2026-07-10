@@ -95,7 +95,7 @@ runs:
             echo "acquired=true" >> "$GITHUB_OUTPUT"
 
             # Update the lock branch with a commit containing metadata
-            LOCK_INFO="Lock acquired by ${GITHUB_REPOSITORY} (run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+            LOCK_INFO="Lock acquired by ${GITHUB_REPOSITORY} - ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             TMPDIR=$(mktemp -d)
             git clone --depth 1 --branch "${LOCK_BRANCH}" "https://x-access-token:${GH_TOKEN}@github.com/${LOCK_REPO}.git" "$TMPDIR" 2>/dev/null || true
             if [ -d "$TMPDIR/.git" ]; then
@@ -113,7 +113,8 @@ runs:
 
           # Show who currently holds the lock
           HOLDER=$(gh api "repos/${LOCK_REPO}/commits/${LOCK_BRANCH}" --jq '.commit.message' 2>/dev/null || echo "unknown")
-          echo "⏳ Lock '${LOCK_NAME}' is held. ${HOLDER}. Retrying in ${POLL_INTERVAL}s... (${elapsed}/${TIMEOUT}s elapsed)"
+          echo "⏳ Lock '${LOCK_NAME}' is held (${elapsed}/${TIMEOUT}s elapsed, retrying in ${POLL_INTERVAL}s)"
+          echo "   Holder: ${HOLDER}"
           sleep "$POLL_INTERVAL"
           elapsed=$((elapsed + POLL_INTERVAL))
         done
